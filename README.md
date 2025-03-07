@@ -28,7 +28,8 @@ The script currently supports the following ultrawide resolutions:
 
 1.  **Download:** Download the `ds3-uw` script.
 2.  **Place in Game Directory:** Copy the `ds3-uw` script file into your Dark Souls III game directory (the same folder that contains `DarkSoulsIII.exe`). This is typically located at:
-    `C:\Program Files (x86)\Steam\steamapps\common\DARK SOULS III\Game\`
+    Windows: `C:\Program Files (x86)\Steam\steamapps\common\DARK SOULS III\Game\`
+    Linux:   `~/.local/share/Steam/steamapps/common/DARK SOULS III/Game/`
 
 ## Usage
 
