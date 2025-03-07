@@ -1,0 +1,96 @@
+#!/usr/bin/env python3
+
+import sys
+import subprocess
+import argparse
+from pathlib import Path
+import re
+from shutil import rmtree
+import os
+import time
+
+def cleanup(game_dir_patched):
+    if game_dir_patched.exists():
+        ds3_path = game_dir_patched / "DarkSoulsIII.exe"
+        while ds3_path.exists():
+            try:
+                os.remove(ds3_path)
+                break
+            except PermissionError:
+                time.sleep(3)
+            except Exception as e:
+                print(f"ds3-uw: could not delete {ds3_path}: {e}")
+                break
+        rmtree(game_dir_patched)
+
+def apply_ultrawide_patch(exe_hex, resolution):
+    """Applies the ultrawide patch based on the provided resolution."""
+
+    uw_pattern = "80 07 00 00 38 04".replace(" ", "")  # Original pattern
+    res = re.search(uw_pattern, exe_hex)
+    if res is None:
+        print("ds3-uw: ultrawide pattern scan failed.")
+        return exe_hex  # Return original hex if pattern not found
+
+    uw_addr = res.span()[0]
+
+    if resolution == "2560x1080":
+        uw_patch = "00 0A 00 00 38 04".replace(" ", "")
+    elif resolution == "3440x1440":
+        uw_patch = "70 0D 00 00 A0 05".replace(" ", "")
+    elif resolution == "5120x1440":
+        uw_patch = "00 14 00 00 A0 05".replace(" ", "")
+    else:
+        print(f"ds3-uw: Unsupported ultrawide resolution: {resolution}")
+        return exe_hex  # Return original hex if unsupported
+
+    return exe_hex[:uw_addr] + uw_patch + exe_hex[uw_addr + len(uw_patch):]
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description="Patch Dark Souls 3 executable for ultrawide resolutions.")
+
+    # Positional argument for resolution - no flag needed, and it's required.
+    parser.add_argument("resolution", type=str,  help="Ultrawide resolution (e.g., 2560x1080, 3440x1440, 5120x1440).")
+
+    patch = parser.parse_args(sys.argv[1:sys.argv.index("--")])
+    game_dir = Path(".")
+    with open(game_dir / "DarkSoulsIII.exe", "rb") as f:
+        exe_hex = f.read().hex()
+
+    exe_hex = apply_ultrawide_patch(exe_hex, patch.resolution)
+
+    game_dir_patched = Path("ds3-uw-tmp")
+
+    cleanup(game_dir_patched)
+
+    if not game_dir_patched.is_dir():
+        game_dir_patched.mkdir()
+
+    with open(game_dir_patched / "DarkSoulsIII.exe", "wb") as f:
+        f.write(bytes.fromhex(exe_hex))
+
+    del exe_hex
+
+    game_dirs = [d for d in game_dir.rglob("*") if d.is_dir()]
+    for d in game_dirs:
+        if d == game_dir_patched:
+            continue
+        if not (game_dir_patched / d).is_dir():
+            (game_dir_patched / d).mkdir(parents=True)
+
+    game_files = [f for f in game_dir.rglob("*") if f.is_file()]
+    for f in game_files:
+        if f.name in ["DarkSoulsIII.exe", "ds3-uw"]:
+            continue
+        if not (game_dir_patched / f).is_file():
+            if sys.version_info.minor >= 10:
+                (game_dir_patched / f).hardlink_to(f)
+            else:
+                f.link_to(game_dir_patched / f)
+
+    # Launch the patched executable directly
+    steam_cmd = sys.argv[1 + sys.argv.index("--"):]
+    steam_cmd[-1] = Path(steam_cmd[-1]).parent.absolute() / game_dir_patched / "DarkSoulsIII.exe"
+    subprocess.run(steam_cmd, cwd=steam_cmd[-1].parent.absolute())
+    cleanup(game_dir_patched)
